@@ -314,6 +314,11 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
               <button className="primary" onClick={toggleScreen}>
                 Share sim screen
               </button>
+              <p className="pane-hint">
+                Home Tee Hero on an iPhone/iPad? Mirror it to this Mac first
+                (Control Center → Screen Mirroring, or QuickTime over USB),
+                then share the mirror window.
+              </p>
             </div>
           )}
         </div>

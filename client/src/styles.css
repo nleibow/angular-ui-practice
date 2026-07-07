@@ -166,6 +166,7 @@ button.pill.link:hover { color: var(--text); }
   padding: 16px;
   text-align: center;
 }
+.pane-hint { font-size: 0.75rem; color: var(--muted); max-width: 360px; margin: 0; }
 .pane-empty code {
   background: var(--panel);
   border: 1px solid var(--line);

@@ -120,6 +120,31 @@ friends, a $5 VPS running both the app and coturn is plenty.
 | `TURN_URL` | *(unset)* | Comma-separated TURN URLs |
 | `TURN_USERNAME` / `TURN_PASSWORD` | *(unset)* | TURN credentials |
 
+## Playing with Home Tee Hero on an iPhone/iPad
+
+Home Tee Hero runs in the Garmin Golf app on your phone or tablet, and iOS
+doesn't let a browser capture another app's screen — so you mirror the device
+to your Mac and share the mirror window. The chain:
+
+**R10 → iPhone/iPad (HTH) → mirrored to the Mac → Chrome shares the mirror →
+your buddy's screen.**
+
+Two built-in ways to mirror:
+
+- **AirPlay (wireless):** On the Mac, *System Settings → General → AirDrop &
+  Handoff → AirPlay Receiver: On*. On the iPhone/iPad, open Control Center →
+  **Screen Mirroring** → pick the Mac. HTH appears as a window on the Mac.
+- **QuickTime (USB cable, most reliable):** Plug the device in, open
+  QuickTime Player → *File → New Movie Recording* → click the ▾ next to the
+  record button → select the iPhone/iPad as the camera. Don't record —
+  it's just a live view window.
+
+Then in RangeMate on the Mac: **Share sim screen** → choose the mirror window.
+AirPlay adds ~0.1–0.2s of delay, which doesn't matter for watching a shot.
+
+If your sim runs on the computer itself (GSPro, E6, Awesome Golf), skip all
+this and share its window directly.
+
 ## Your first round (non-technical walkthrough)
 
 1. **Both of you:** use **Chrome or Edge** on the computer that runs your sim.
