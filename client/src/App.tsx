@@ -290,8 +290,10 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
         </div>
       )}
 
-      <div className="videos">
-        <div className={`pane ${match?.hittingPlayerId && !iAmHitting ? 'spotlight' : ''}`}>
+      {/* Theater mode: while the opponent is hitting, their sim takes over the
+          screen so you can't miss the shot; your own pane shrinks to a thumb. */}
+      <div className={`videos ${match?.hittingPlayerId && !iAmHitting && opponent ? 'theater' : ''}`}>
+        <div className={`pane remote ${match?.hittingPlayerId && !iAmHitting ? 'spotlight' : ''}`}>
           <video ref={remoteVideoRef} autoPlay playsInline />
           <div className="pane-label">
             {opponent ? `${opponent.name}${opponent.connected ? '' : ' (disconnected)'}` : 'Waiting for opponent…'}
@@ -303,7 +305,7 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
             </div>
           )}
         </div>
-        <div className={`pane ${iAmHitting ? 'spotlight' : ''}`}>
+        <div className={`pane local ${iAmHitting ? 'spotlight' : ''}`}>
           <video ref={localVideoRef} autoPlay playsInline muted />
           <div className="pane-label">You ({profile.name})</div>
           {!screenOn && (

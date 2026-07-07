@@ -125,7 +125,24 @@ button.pill.link:hover { color: var(--text); }
   border-radius: var(--radius);
   overflow: hidden;
   aspect-ratio: 16 / 9;
+  transition: all 0.25s ease;
 }
+
+/* Theater mode: opponent is hitting — their pane takes the full width, your
+   own shrinks to a picture-in-picture thumbnail so the shot fills the screen. */
+.videos.theater { grid-template-columns: 1fr; position: relative; }
+.videos.theater .pane.remote { grid-column: 1 / -1; }
+.videos.theater .pane.local {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: clamp(140px, 22%, 260px);
+  z-index: 5;
+  border-color: var(--line);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+.videos.theater .pane.local .pane-empty { display: none; }
+.videos.theater .pane.local .pane-label { font-size: 0.7rem; padding: 2px 8px; }
 .pane.spotlight { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-dim); }
 .pane video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .pane-label {
