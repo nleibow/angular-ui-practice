@@ -1,6 +1,10 @@
-# Logs
-logs
+node_modules/
+dist/
+build/
 *.log
-
-# Dependency directory
-node_modules
+logs
+.env
+.env.local
+.DS_Store
+coverage/
+data/*.json

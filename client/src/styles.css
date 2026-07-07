@@ -1,0 +1,299 @@
+/* RangeMate — dark theme for a dim sim room, giant tap targets for one-hand use. */
+
+:root {
+  --bg: #0d1512;
+  --panel: #16211c;
+  --panel-2: #1d2b24;
+  --line: #2a3d33;
+  --text: #e8f1ec;
+  --muted: #8fa89b;
+  --green: #34d17b;
+  --green-dim: #1f7a4c;
+  --gold: #e8c45a;
+  --red: #e56b6b;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; cursor: pointer; }
+
+/* ---------- Lobby ---------- */
+
+.lobby {
+  max-width: 420px;
+  margin: 8vh auto 0;
+  padding: 24px;
+  text-align: center;
+}
+.lobby h1 { font-size: 2.2rem; margin: 0 0 8px; }
+.lobby .tagline { color: var(--muted); margin: 0 0 28px; }
+.lobby form { display: flex; flex-direction: column; gap: 16px; text-align: left; }
+.lobby label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; color: var(--muted); }
+.lobby input {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 1.15rem;
+  padding: 14px 16px;
+  outline: none;
+}
+.lobby input:focus { border-color: var(--green-dim); }
+.lobby .hint { color: var(--muted); font-size: 0.85rem; margin-top: 24px; }
+
+.primary {
+  background: var(--green);
+  color: #06281a;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1.15rem;
+  font-weight: 700;
+  padding: 16px;
+}
+.primary:active { transform: scale(0.98); }
+
+/* ---------- Session ---------- */
+
+.session {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.brand { font-weight: 800; font-size: 1.15rem; }
+.header-status { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding: 6px 12px;
+}
+.pill.conn-open { color: var(--green); border-color: var(--green-dim); }
+.pill.conn-reconnecting, .pill.conn-connecting { color: var(--gold); }
+.pill.conn-closed { color: var(--red); }
+.pill.rtc-connected { color: var(--green); border-color: var(--green-dim); }
+.pill.rtc-failed, .pill.rtc-disconnected { color: var(--red); }
+button.pill.link:hover { color: var(--text); }
+
+.banner {
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-weight: 600;
+}
+.banner.error { background: #3a1d1d; color: var(--red); cursor: pointer; }
+.banner.error .dismiss { float: right; opacity: 0.7; }
+.banner.hitting { background: var(--green-dim); color: #fff; text-align: center; font-size: 1.05rem; }
+.banner.hitting.me { background: #7a5b1f; }
+
+/* ---------- Video panes ---------- */
+
+.videos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 800px) {
+  .videos { grid-template-columns: 1fr; }
+}
+
+.pane {
+  position: relative;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+.pane.spotlight { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-dim); }
+.pane video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.pane-label {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+.pane-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  padding: 16px;
+  text-align: center;
+}
+.pane-empty code {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  word-break: break-all;
+  user-select: all;
+}
+
+/* ---------- Controls ---------- */
+
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ctl {
+  flex: 1;
+  min-width: 140px;
+  min-height: 56px;             /* big, one-hand tap target */
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.ctl.on { background: var(--green-dim); border-color: var(--green); }
+.ctl.hit.on { background: #7a5b1f; border-color: var(--gold); }
+.ctl:disabled { opacity: 0.4; cursor: default; }
+
+/* ---------- Scorecard ---------- */
+
+.scorecard { display: flex; flex-direction: column; gap: 10px; }
+
+.match-status {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  padding: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.match-status.closed { background: var(--green-dim); color: #fff; }
+
+.nine {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  table-layout: fixed;
+}
+.nine th, .nine td {
+  border: 1px solid var(--line);
+  text-align: center;
+  padding: 6px 2px;
+  font-size: 0.95rem;
+}
+.nine thead th { background: var(--panel-2); font-weight: 700; }
+.nine .meta th { font-weight: 400; color: var(--muted); font-size: 0.75rem; padding: 3px 2px; }
+.nine .rowhead { width: 92px; text-align: left; padding-left: 8px; }
+.nine .tot { width: 44px; background: var(--panel-2); font-weight: 700; }
+
+.player-cell { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.pname { font-weight: 700; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; max-width: 84px; white-space: nowrap; }
+.hcp {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.65rem;
+  padding: 1px 6px;
+}
+
+tr.self .rowhead { box-shadow: inset 3px 0 0 var(--green); }
+
+td.score {
+  cursor: pointer;
+  position: relative;
+  height: 52px;                 /* big tap target */
+  font-size: 1.15rem;
+  font-weight: 700;
+  user-select: none;
+}
+td.score:hover { background: var(--panel-2); }
+td.score .dots { position: absolute; top: 2px; right: 4px; color: var(--gold); font-size: 0.6rem; letter-spacing: 1px; }
+td.score .net { position: absolute; bottom: 2px; right: 4px; color: var(--muted); font-size: 0.65rem; }
+td.score.birdie .gross { color: var(--red); }
+td.score.eagle .gross { color: var(--gold); }
+td.score.par .gross { color: var(--text); }
+td.score.bogey .gross { color: #9db8ab; }
+td.score.double .gross { color: #7d958a; }
+
+.final .net-total { display: block; font-size: 0.65rem; color: var(--muted); font-weight: 400; }
+
+/* ---------- Score pad / modals ---------- */
+
+.pad-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+.pad {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+  width: min(420px, 100%);
+}
+.pad-title { font-weight: 800; font-size: 1.1rem; margin-bottom: 14px; text-align: center; }
+.pad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.pad-btn {
+  min-height: 72px;             /* thumb-sized */
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 1.6rem;
+  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.pad-btn .pad-label { font-size: 0.65rem; font-weight: 500; color: var(--muted); }
+.pad-btn.is-par { border-color: var(--green-dim); }
+.pad-btn.is-birdie { border-color: var(--red); }
+.pad-btn.clear { color: var(--muted); font-size: 1.1rem; }
+.pad-btn:active { transform: scale(0.96); }
+
+.pad.help { line-height: 1.5; }
+.pad.help ol { padding-left: 20px; }
+.pad.help .hint { color: var(--muted); font-size: 0.85rem; }
+.pad.help .primary { width: 100%; margin-top: 8px; }
