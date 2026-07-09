@@ -52,6 +52,8 @@ const MIME: Record<string, string> = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
+  '.gz': 'application/gzip',
 };
 
 function serveStatic(req: IncomingMessage, res: ServerResponse): void {

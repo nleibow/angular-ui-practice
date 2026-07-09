@@ -14,11 +14,14 @@ import {
 interface Props {
   match: Match;
   selfId: PlayerId;
+  /** Highlighted column: the hole the group is on. */
+  currentHole: number;
   onSetScore: (playerId: PlayerId, hole: number, strokes: number | null) => void;
   onSetHandicap: (playerId: PlayerId, handicap: number) => void;
+  onUndoMulligan: (playerId: PlayerId) => void;
 }
 
-export function Scorecard({ match, selfId, onSetScore, onSetHandicap }: Props) {
+export function Scorecard({ match, selfId, currentHole, onSetScore, onSetHandicap, onUndoMulligan }: Props) {
   const [editing, setEditing] = useState<{ playerId: PlayerId; hole: number } | null>(null);
 
   const players = match.order.map((id) => match.players[id]).filter(Boolean);
@@ -48,9 +51,11 @@ export function Scorecard({ match, selfId, onSetScore, onSetHandicap }: Props) {
         <table key={nineIdx} className="nine">
           <thead>
             <tr>
-              <th className="rowhead">{nineIdx === 0 ? 'Hole' : 'Hole'}</th>
+              <th className="rowhead">Hole</th>
               {nine.map((h) => (
-                <th key={h}>{h + 1}</th>
+                <th key={h} className={h === currentHole ? 'cur' : ''}>
+                  {h + 1}
+                </th>
               ))}
               <th className="tot">{nineIdx === 0 ? 'OUT' : 'IN'}</th>
               {nineIdx === 1 && <th className="tot">TOT</th>}
@@ -81,18 +86,31 @@ export function Scorecard({ match, selfId, onSetScore, onSetHandicap }: Props) {
                 <tr key={p.id} className={p.id === selfId ? 'self' : ''}>
                   <td className="rowhead player-cell">
                     <span className="pname">{p.name}</span>
-                    <button
-                      className="hcp"
-                      title="Tap to change handicap"
-                      onClick={() => {
-                        const raw = prompt(`${p.name}'s course handicap:`, String(p.handicap));
-                        if (raw == null) return;
-                        const n = Number(raw);
-                        if (!Number.isNaN(n)) onSetHandicap(p.id, n);
-                      }}
-                    >
-                      HCP {p.handicap}
-                    </button>
+                    <span className="chips">
+                      <button
+                        className="hcp"
+                        title="Tap to change handicap"
+                        onClick={() => {
+                          const raw = prompt(`${p.name}'s course handicap:`, String(p.handicap));
+                          if (raw == null) return;
+                          const n = Number(raw);
+                          if (!Number.isNaN(n)) onSetHandicap(p.id, n);
+                        }}
+                      >
+                        HCP {p.handicap}
+                      </button>
+                      {(match.mulligansUsed[p.id] ?? 0) > 0 && (
+                        <button
+                          className="hcp mull"
+                          title="Mulligans used — tap to undo one"
+                          onClick={() => {
+                            if (confirm(`Undo one of ${p.name}'s mulligans?`)) onUndoMulligan(p.id);
+                          }}
+                        >
+                          🔄 {match.mulligansUsed[p.id]}
+                        </button>
+                      )}
+                    </span>
                   </td>
                   {nine.map((h) => {
                     const gross = match.scores[p.id]?.[h] ?? null;
@@ -102,7 +120,7 @@ export function Scorecard({ match, selfId, onSetScore, onSetHandicap }: Props) {
                     return (
                       <td
                         key={h}
-                        className={`score ${scoreClass(toPar)}`}
+                        className={`score ${scoreClass(toPar)} ${h === currentHole ? 'cur' : ''}`}
                         onClick={() => setEditing({ playerId: p.id, hole: h })}
                       >
                         <span className="gross">{gross ?? ''}</span>

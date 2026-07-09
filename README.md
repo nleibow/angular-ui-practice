@@ -20,8 +20,19 @@ indicator.
 - **Shared live scorecard** — gross + net per hole, stroke-play totals, and
   live match-play status ("2 UP thru 7", "DORMIE", "3 & 2"). Big tap targets,
   built for one hand between shots. Handicap strokes allocated by stroke index.
-- **Turn indicator** — hit "I'm hitting" and your buddy gets a heads-up banner
-  and your video pane gets the spotlight.
+- **Turn system** — tap "My turn" when you step up; your buddy's view flips to
+  theater mode (your sim fullscreen on their side) with a chime and a banner.
+  Tap "Done — pass to Buddy" and the turn flips back, like honors on the tee.
+- **Auto shot detection (no buttons)** — with your mic on, the app hears the
+  crack of impact and logs the shot itself: your buddy's screen flashes into
+  theater for the ball flight and the shot lands in a shared feed.
+  Sensitivity: off / low / high.
+- **Auto stat capture (beta)** — draw one box over where your sim shows the
+  numbers (carry, ball speed…). After each detected shot the app OCRs the box
+  and attaches the numbers to the shot feed — fuel for long-drive and
+  closest-to-pin bragging. Fully self-hosted OCR, no cloud.
+- **Mulligans** — everyone gets an allowance (default 3). Burn one with a tap;
+  your buddy gets a toast announcing it. Usage shows on the scorecard, undoable.
 - **Survives hiccups** — refresh mid-round and you're back in your seat with
   the full scorecard in under a second. Server restarts restore rounds from
   disk snapshots. Rounds last hours; connections don't.
@@ -159,12 +170,19 @@ this and share its window directly.
      browser, then **quit and reopen the browser** and open your match link
      again. Your spot in the match is saved.
 5. **Both:** load the *same course* in your sims and agree on tees.
-6. Play golf. Before you swing, tap **I'm hitting** so your buddy looks up.
+6. Play golf. Tap **My turn** when you step up — your buddy's screen switches
+   to yours automatically; tap **Done — pass** when your ball stops. With the
+   mic on, the app also *hears* your strike and flashes your shot onto his
+   screen by itself (tune it with the "Auto shot detect" switch).
    After each hole, tap your score on the card — the pad is centered on par.
-7. The banner shows the match: "AS thru 3", "2 UP thru 7", and the win
+   Blown shot? **Mulligan** — he'll be notified, don't worry.
+7. Want live numbers in the feed? Tap **set box** and drag a rectangle over
+   where your sim displays carry/ball speed, then **test read** to check it.
+   After every detected shot those numbers post to the shared shot feed.
+8. The banner shows the match: "AS thru 3", "2 UP thru 7", and the win
    ("3 & 2") when it's over. Net scoring uses your handicaps automatically —
    the gold dots on the card show where strokes fall.
-8. If anything freezes: **refresh the page.** You'll be back in your seat with
+9. If anything freezes: **refresh the page.** You'll be back in your seat with
    the scorecard intact in a second or two.
 
 ## How it works

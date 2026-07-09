@@ -4,8 +4,9 @@ import {
   netOnHole,
   strokePlayTotals,
   matchPlayStatus,
+  currentHole,
 } from './scoring.js';
-import { createMatch, addPlayer, applyPatch } from './match.js';
+import { createMatch, addPlayer, applyPatch, normalizeMatch } from './match.js';
 import type { Match, PlayerId } from './types.js';
 
 // --- helpers ----------------------------------------------------------------
@@ -239,6 +240,84 @@ describe('applyPatch', () => {
   it('rejects a score for an unknown player', () => {
     const m = twoPlayerMatch();
     expect(applyPatch(m, { setScore: { playerId: 'ghost', hole: 0, strokes: 4 } })).toBe(false);
+  });
+
+  it('mulligans: burn, clamp at allowance, undo, clamp at zero', () => {
+    const m = twoPlayerMatch(); // allowance 3
+    expect(applyPatch(m, { useMulligan: { playerId: 'A', delta: 1 } })).toBe(true);
+    expect(m.mulligansUsed.A).toBe(1);
+    applyPatch(m, { useMulligan: { playerId: 'A', delta: 1 } });
+    applyPatch(m, { useMulligan: { playerId: 'A', delta: 1 } });
+    // 4th one is a no-op at the allowance
+    expect(applyPatch(m, { useMulligan: { playerId: 'A', delta: 1 } })).toBe(false);
+    expect(m.mulligansUsed.A).toBe(3);
+    // undo works, and can't go below zero
+    expect(applyPatch(m, { useMulligan: { playerId: 'A', delta: -1 } })).toBe(true);
+    expect(m.mulligansUsed.A).toBe(2);
+    expect(applyPatch(m, { useMulligan: { playerId: 'B', delta: -1 } })).toBe(false);
+    // unknown player rejected
+    expect(applyPatch(m, { useMulligan: { playerId: 'ghost', delta: 1 } })).toBe(false);
+  });
+
+  it('lowering the allowance clamps already-used mulligans', () => {
+    const m = twoPlayerMatch();
+    applyPatch(m, { useMulligan: { playerId: 'A', delta: 1 } });
+    applyPatch(m, { useMulligan: { playerId: 'A', delta: 1 } });
+    applyPatch(m, { setMulliganAllowance: { allowance: 1 } });
+    expect(m.mulliganAllowance).toBe(1);
+    expect(m.mulligansUsed.A).toBe(1);
+  });
+
+  it('normalizeMatch backfills mulligan fields on old snapshots', () => {
+    const m = twoPlayerMatch();
+    // Simulate a pre-mulligan snapshot
+    delete (m as Partial<typeof m>).mulligansUsed;
+    delete (m as Partial<typeof m>).mulliganAllowance;
+    const n = normalizeMatch(m);
+    expect(n.mulliganAllowance).toBe(3);
+    expect(n.mulligansUsed.A).toBe(0);
+    expect(n.mulligansUsed.B).toBe(0);
+  });
+
+  it('currentHole is the first hole missing any score', () => {
+    const m = twoPlayerMatch();
+    expect(currentHole(m)).toBe(0);
+    setScores(m, 'A', [4]);
+    expect(currentHole(m)).toBe(0); // B hasn't scored hole 1 yet
+    setScores(m, 'B', [4]);
+    expect(currentHole(m)).toBe(1);
+    // full card => stays on the last hole
+    setScores(m, 'A', new Array(18).fill(4));
+    setScores(m, 'B', new Array(18).fill(4));
+    expect(currentHole(m)).toBe(17);
+  });
+
+  it('shots: logs with dedupe by id, attaches stats, rejects unknown player', () => {
+    const m = twoPlayerMatch();
+    expect(applyPatch(m, { addShot: { id: 's1', playerId: 'A', auto: true } })).toBe(true);
+    expect(applyPatch(m, { addShot: { id: 's1', playerId: 'A' } })).toBe(false); // dupe
+    expect(applyPatch(m, { addShot: { id: 's2', playerId: 'ghost' } })).toBe(false);
+    expect(m.shots.length).toBe(1);
+    expect(m.shots[0].auto).toBe(true);
+    expect(m.shots[0].at).toBeGreaterThan(0);
+
+    expect(applyPatch(m, { setShotStats: { id: 's1', stats: { Carry: '232 yd' } } })).toBe(true);
+    expect(m.shots[0].stats?.Carry).toBe('232 yd');
+    expect(applyPatch(m, { setShotStats: { id: 'nope', stats: { Carry: '1' } } })).toBe(false);
+  });
+
+  it('shots: oversized stats are truncated, feed stays bounded', () => {
+    const m = twoPlayerMatch();
+    applyPatch(m, { addShot: { id: 's1', playerId: 'A' } });
+    const big: Record<string, string> = {};
+    for (let i = 0; i < 20; i++) big[`key-${i}-${'x'.repeat(40)}`] = 'v'.repeat(60);
+    applyPatch(m, { setShotStats: { id: 's1', stats: big } });
+    const stats = m.shots[0].stats!;
+    expect(Object.keys(stats).length).toBeLessThanOrEqual(8);
+    for (const [k, v] of Object.entries(stats)) {
+      expect(k.length).toBeLessThanOrEqual(24);
+      expect(v.length).toBeLessThanOrEqual(24);
+    }
   });
 
   it('resizing to 9 holes keeps existing scores and renumbers stroke index 1..9', () => {

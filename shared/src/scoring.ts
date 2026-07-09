@@ -79,6 +79,19 @@ export function strokePlayTotals(match: Match, playerId: PlayerId): StrokePlayTo
   };
 }
 
+/**
+ * The hole the group is playing now: the first hole where any seated player
+ * has no score. Returns holeCount - 1 once the card is full (round over).
+ */
+export function currentHole(match: Match): number {
+  for (let h = 0; h < match.holeCount; h++) {
+    for (const pid of match.order) {
+      if ((match.scores[pid]?.[h] ?? null) == null) return h;
+    }
+  }
+  return match.holeCount - 1;
+}
+
 export interface MatchPlayStatus {
   /** Player currently ahead, or null when all square. */
   leaderId: PlayerId | null;

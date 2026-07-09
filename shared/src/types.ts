@@ -11,6 +11,18 @@ export interface Player {
   connected: boolean;
 }
 
+/** One detected (or manually logged) swing, optionally with OCR'd sim stats. */
+export interface ShotEvent {
+  id: string;
+  playerId: PlayerId;
+  /** Server-assigned ms epoch. */
+  at: number;
+  /** e.g. { "Carry": "232 yd", "Ball speed": "158 mph" } — display strings. */
+  stats?: Record<string, string>;
+  /** True when logged by the impact detector rather than a human. */
+  auto?: boolean;
+}
+
 export interface Match {
   id: string;
   createdAt: number;
@@ -23,8 +35,14 @@ export interface Match {
   order: PlayerId[];
   /** Gross strokes per hole per player; null = not yet entered. */
   scores: Record<PlayerId, (number | null)[]>;
-  /** Whose "is hitting" indicator is lit, or null. */
+  /** Whose turn it is (the "is hitting" spotlight), or null before play. */
   hittingPlayerId: PlayerId | null;
+  /** Mulligans burned per player. */
+  mulligansUsed: Record<PlayerId, number>;
+  /** Mulligans each player gets for the round. */
+  mulliganAllowance: number;
+  /** Rolling shot feed, oldest first, capped. */
+  shots: ShotEvent[];
   /** Monotonic; bumped on every server-applied change. */
   version: number;
 }
@@ -37,6 +55,13 @@ export interface MatchPatch {
   setHandicap?: { playerId: PlayerId; handicap: number };
   setHitting?: { playerId: PlayerId | null };
   setHoleCount?: { holeCount: number };
+  /** delta +1 burns a mulligan, -1 undoes a mis-tap. Clamped to 0..allowance. */
+  useMulligan?: { playerId: PlayerId; delta: 1 | -1 };
+  setMulliganAllowance?: { allowance: number };
+  /** Log a swing (impact detector or manual). id is client-generated. */
+  addShot?: { id: string; playerId: PlayerId; auto?: boolean };
+  /** Attach OCR'd stats to an existing shot. */
+  setShotStats?: { id: string; stats: Record<string, string> };
 }
 
 export type ClientMessage =

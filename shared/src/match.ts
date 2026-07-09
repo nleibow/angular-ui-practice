@@ -22,8 +22,28 @@ export function createMatch(id: string, holeCount: 9 | 18 = 18): Match {
     order: [],
     scores: {},
     hittingPlayerId: null,
+    mulligansUsed: {},
+    mulliganAllowance: 3,
+    shots: [],
     version: 0,
   };
+}
+
+/** Keep the feed bounded; a 2x18 round with mulligans is well under this. */
+const MAX_SHOTS = 200;
+
+/**
+ * Backfill fields added after a snapshot was written, so old rounds loaded
+ * from disk keep working across upgrades.
+ */
+export function normalizeMatch(match: Match): Match {
+  match.mulligansUsed ??= {};
+  match.mulliganAllowance ??= 3;
+  match.shots ??= [];
+  for (const pid of Object.keys(match.players)) {
+    match.mulligansUsed[pid] ??= 0;
+  }
+  return match;
 }
 
 /** When truncating to 9 holes the sliced stroke indexes aren't 1..9; re-rank. */
@@ -40,6 +60,7 @@ export function addPlayer(match: Match, player: Player): void {
   if (!match.scores[player.id]) {
     match.scores[player.id] = new Array(match.holeCount).fill(null);
   }
+  match.mulligansUsed[player.id] ??= 0;
 }
 
 /**
@@ -81,6 +102,49 @@ export function applyPatch(match: Match, patch: MatchPatch): boolean {
     }
   }
 
+  if (patch.useMulligan) {
+    const { playerId, delta } = patch.useMulligan;
+    if (match.players[playerId]) {
+      const used = match.mulligansUsed[playerId] ?? 0;
+      const next = Math.max(0, Math.min(match.mulliganAllowance, used + delta));
+      if (next !== used) {
+        match.mulligansUsed[playerId] = next;
+        changed = true;
+      }
+    }
+  }
+
+  if (patch.setMulliganAllowance) {
+    const clean = Math.max(0, Math.min(18, Math.round(patch.setMulliganAllowance.allowance)));
+    if (clean !== match.mulliganAllowance) {
+      match.mulliganAllowance = clean;
+      // Never leave a player over the new allowance.
+      for (const pid of Object.keys(match.mulligansUsed)) {
+        match.mulligansUsed[pid] = Math.min(match.mulligansUsed[pid], clean);
+      }
+      changed = true;
+    }
+  }
+
+  if (patch.addShot) {
+    const { id, playerId, auto } = patch.addShot;
+    // Dedupe by id: retried/relayed patches must not double-log a swing.
+    if (match.players[playerId] && id && !match.shots.some((s) => s.id === id)) {
+      match.shots.push({ id, playerId, at: Date.now(), ...(auto ? { auto: true } : {}) });
+      if (match.shots.length > MAX_SHOTS) match.shots.splice(0, match.shots.length - MAX_SHOTS);
+      changed = true;
+    }
+  }
+
+  if (patch.setShotStats) {
+    const shot = match.shots.find((s) => s.id === patch.setShotStats!.id);
+    const stats = patch.setShotStats.stats;
+    if (shot && stats && Object.keys(stats).length > 0) {
+      shot.stats = sanitizeStats(stats);
+      changed = true;
+    }
+  }
+
   if (patch.setHoleCount) {
     const hc = patch.setHoleCount.holeCount === 9 ? 9 : 18;
     if (hc !== match.holeCount) {
@@ -90,6 +154,15 @@ export function applyPatch(match: Match, patch: MatchPatch): boolean {
   }
 
   return changed;
+}
+
+/** Cap stat entries: OCR output crossing the wire should stay small and flat. */
+function sanitizeStats(stats: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(stats).slice(0, 8)) {
+    out[String(k).slice(0, 24)] = String(v).slice(0, 24);
+  }
+  return out;
 }
 
 function clampStrokes(n: number): number {

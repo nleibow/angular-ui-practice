@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { join } from 'node:path';
 import type { WebSocket } from 'ws';
 import type { Match, MatchPatch, Player, PlayerId } from '@rangemate/shared';
-import { createMatch, addPlayer, applyPatch } from '@rangemate/shared';
+import { createMatch, addPlayer, applyPatch, normalizeMatch } from '@rangemate/shared';
 
 interface Connection {
   playerId: PlayerId;
@@ -147,7 +147,7 @@ export class RoomStore {
     for (const f of files) {
       try {
         const raw = readFileSync(join(this.dataDir, f), 'utf8');
-        const match = JSON.parse(raw) as Match;
+        const match = normalizeMatch(JSON.parse(raw) as Match);
         // Everyone is disconnected after a restart; connections rebuild on join.
         for (const p of Object.values(match.players)) p.connected = false;
         this.rooms.set(match.id, { match, connections: new Map() });
