@@ -10,7 +10,8 @@ import type { Match, PlayerId, ShotEvent } from '@rangemate/shared';
 import { currentHole } from '@rangemate/shared';
 import { RtcSession, captureMic, captureScreen, fetchIceServers, isPermissionError } from './webrtc';
 import { Scorecard } from './Scorecard';
-import { ImpactDetector, type Sensitivity } from './impact';
+import { ImpactDetector } from './impact';
+import { ScreenWatcher } from './watch';
 import {
   type Region,
   paneRectToRegion,
@@ -148,14 +149,19 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
   const [toast, setToast] = useState<string | null>(null);
   const [shotFlashUntil, setShotFlashUntil] = useState(0);
   const [, forceTick] = useState(0);
-  const [sensitivity, setSensitivity] = useState<Sensitivity>(
-    () => (localStorage.getItem('rangemate:sens') as Sensitivity) ?? 'high',
-  );
+  const [detectMode, setDetectMode] = useState<'screen' | 'mic' | 'off'>(() => {
+    const raw = localStorage.getItem('rangemate:detect');
+    return raw === 'mic' || raw === 'off' ? raw : 'screen';
+  });
   const [region, setRegion] = useState<Region | null>(() => {
     const raw = localStorage.getItem(`rangemate:ocr:${roomId}`);
     return raw ? JSON.parse(raw) : null;
   });
-  const [pickingRegion, setPickingRegion] = useState(false);
+  const [watchRegion, setWatchRegion] = useState<Region | null>(() => {
+    const raw = localStorage.getItem(`rangemate:watch:${roomId}`);
+    return raw ? JSON.parse(raw) : null;
+  });
+  const [pickingFor, setPickingFor] = useState<'stats' | 'watch' | null>(null);
   const [dragRect, setDragRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [ocrBusy, setOcrBusy] = useState(false);
 
@@ -169,6 +175,9 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localPaneRef = useRef<HTMLDivElement>(null);
   const detectorRef = useRef<ImpactDetector | null>(null);
+  const watcherRef = useRef<ScreenWatcher | null>(null);
+  const watchRegionRef = useRef(watchRegion);
+  watchRegionRef.current = watchRegion;
   const seenShotsRef = useRef<Set<string> | null>(null); // null until first state
   const prevHittingRef = useRef<PlayerId | null>(null);
   const prevMullRef = useRef<Record<string, number>>({});
@@ -237,18 +246,22 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
     [showToast],
   );
 
-  // Boot: fetch ICE config, open the socket, arm the impact detector.
+  // One shot event, however it was detected (screen watcher or mic).
+  const fireShot = useCallback(() => {
+    const self = selfIdRef.current;
+    if (!self) return;
+    const id = rid();
+    netRef.current?.update({ addShot: { id, playerId: self, auto: true } });
+    // Give the sim a beat to paint the numbers, then read them.
+    if (regionRef.current) setTimeout(() => void runOcrForShot(id), OCR_DELAY_MS);
+  }, [runOcrForShot]);
+
+  // Boot: fetch ICE config, open the socket, arm the detectors.
   useEffect(() => {
     let disposed = false;
-    detectorRef.current = new ImpactDetector(() => {
-      const self = selfIdRef.current;
-      if (!self) return;
-      const id = rid();
-      netRef.current?.update({ addShot: { id, playerId: self, auto: true } });
-      // Give the sim a beat to paint the numbers, then read them.
-      if (regionRef.current) setTimeout(() => void runOcrForShot(id), OCR_DELAY_MS);
-    });
-    detectorRef.current.sensitivity = sensitivity;
+    detectorRef.current = new ImpactDetector(fireShot);
+    detectorRef.current.sensitivity = 'high';
+    watcherRef.current = new ScreenWatcher(fireShot);
 
     (async () => {
       iceRef.current = await fetchIceServers();
@@ -281,11 +294,31 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
       netRef.current?.close();
       rtcRef.current?.close();
       detectorRef.current?.stop();
+      watcherRef.current?.stop();
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  // Keep the detectors matched to mode + available media.
+  useEffect(() => {
+    localStorage.setItem('rangemate:detect', detectMode);
+    const watcher = watcherRef.current;
+    const detector = detectorRef.current;
+    // Screen watcher
+    if (detectMode === 'screen' && screenOn && watchRegion && localVideoRef.current) {
+      watcher?.start(localVideoRef.current, watchRegion);
+    } else {
+      watcher?.stop();
+    }
+    // Mic detector
+    if (detectMode === 'mic' && micOn && micStreamRef.current) {
+      detector?.start(micStreamRef.current);
+    } else {
+      detector?.stop();
+    }
+  }, [detectMode, screenOn, micOn, watchRegion]);
 
   // Turn-change cues: chime when it becomes my turn, blip when it's theirs.
   useEffect(() => {
@@ -344,18 +377,19 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
     return () => clearTimeout(t);
   });
 
-  // Persist detector sensitivity + keep the detector in sync.
-  useEffect(() => {
-    localStorage.setItem('rangemate:sens', sensitivity);
-    if (detectorRef.current) detectorRef.current.sensitivity = sensitivity;
-  }, [sensitivity]);
-
   // Debug/testing hook: lets the console (or an E2E test) inject patches,
   // e.g. window.__rm.update({ addShot: { id: 'x', playerId: window.__rm.selfId } })
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__rm = {
       selfId,
       update: (p: Parameters<Net['update']>[0]) => netRef.current?.update(p),
+      debug: () => ({
+        watching: watcherRef.current?.running ?? false,
+        ticks: watcherRef.current?.tickCount ?? 0,
+        fires: watcherRef.current?.fireCount ?? 0,
+        lastFraction: watcherRef.current?.lastFraction ?? 0,
+        maxFraction: watcherRef.current?.maxFraction ?? 0,
+      }),
     };
   }, [selfId]);
 
@@ -391,7 +425,6 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
       rtcRef.current?.setMic(null);
-      detectorRef.current?.stop();
       setMicOn(false);
       return;
     }
@@ -399,7 +432,6 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
       const stream = await captureMic();
       micStreamRef.current = stream;
       rtcRef.current?.setMic(stream);
-      detectorRef.current?.start(stream);
       setMicOn(true);
     } catch {
       setError('Microphone unavailable — check browser permissions.');
@@ -423,14 +455,14 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
   };
 
   const onPanePointerDown = (e: React.PointerEvent) => {
-    if (!pickingRegion) return;
+    if (!pickingFor) return;
     e.preventDefault();
     (e.target as Element).setPointerCapture(e.pointerId);
     dragStartRef.current = paneMouse(e);
     setDragRect({ ...dragStartRef.current, w: 0, h: 0 });
   };
   const onPanePointerMove = (e: React.PointerEvent) => {
-    if (!pickingRegion || !dragStartRef.current) return;
+    if (!pickingFor || !dragStartRef.current) return;
     const cur = paneMouse(e);
     const s = dragStartRef.current;
     setDragRect({
@@ -441,36 +473,45 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
     });
   };
   const onPanePointerUp = () => {
-    if (!pickingRegion || !dragRect || !localPaneRef.current || !localVideoRef.current) return;
+    if (!pickingFor || !dragRect || !localPaneRef.current || !localVideoRef.current) return;
     const pane = localPaneRef.current.getBoundingClientRect();
     const reg = paneRectToRegion(
       { width: pane.width, height: pane.height },
       localVideoRef.current,
       dragRect,
     );
+    const target = pickingFor;
     dragStartRef.current = null;
     setDragRect(null);
-    setPickingRegion(false);
-    if (reg) {
+    setPickingFor(null);
+    if (!reg) {
+      showToast('Box too small — drag a bigger rectangle');
+      return;
+    }
+    if (target === 'stats') {
       setRegion(reg);
       localStorage.setItem(`rangemate:ocr:${roomId}`, JSON.stringify(reg));
       showToast('📦 Stats box saved — test it with “Test read”');
     } else {
-      showToast('Box too small — drag a rectangle over the sim’s numbers');
+      setWatchRegion(reg);
+      localStorage.setItem(`rangemate:watch:${roomId}`, JSON.stringify(reg));
+      showToast('👁 Watch box saved — shots will be detected from the screen');
     }
   };
 
-  const savedRegionRect =
-    region && localPaneRef.current && localVideoRef.current && screenOn
+  const paneRect = (reg: Region | null) =>
+    reg && localPaneRef.current && localVideoRef.current && screenOn
       ? regionToPaneRect(
           {
             width: localPaneRef.current.getBoundingClientRect().width,
             height: localPaneRef.current.getBoundingClientRect().height,
           },
           localVideoRef.current,
-          region,
+          reg,
         )
       : null;
+  const savedRegionRect = paneRect(region);
+  const savedWatchRect = paneRect(watchRegion);
 
   // --- derived view state ---
   const opponent =
@@ -560,7 +601,7 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
         </div>
         <div
           ref={localPaneRef}
-          className={`pane local ${iAmHitting ? 'spotlight' : ''} ${pickingRegion ? 'picking' : ''}`}
+          className={`pane local ${iAmHitting ? 'spotlight' : ''} ${pickingFor ? 'picking' : ''}`}
           onPointerDown={onPanePointerDown}
           onPointerMove={onPanePointerMove}
           onPointerUp={onPanePointerUp}
@@ -579,12 +620,16 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
               </p>
             </div>
           )}
-          {pickingRegion && (
-            <div className="pick-hint">Drag a box over where your sim shows the shot numbers</div>
+          {pickingFor && (
+            <div className="pick-hint">
+              {pickingFor === 'watch'
+                ? 'Drag a box over the part of the sim that changes after every shot (HTH: the scorecard widget, top-left)'
+                : 'Drag a box over where your sim shows the shot numbers (carry, ball speed…)'}
+            </div>
           )}
           {dragRect && (
             <div
-              className="region-box dragging"
+              className={`region-box dragging ${pickingFor === 'watch' ? 'watch' : ''}`}
               style={{ left: dragRect.x, top: dragRect.y, width: dragRect.w, height: dragRect.h }}
             />
           )}
@@ -596,6 +641,17 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
                 top: savedRegionRect.y,
                 width: savedRegionRect.w,
                 height: savedRegionRect.h,
+              }}
+            />
+          )}
+          {!dragRect && savedWatchRect && (
+            <div
+              className="region-box watch"
+              style={{
+                left: savedWatchRect.x,
+                top: savedWatchRect.y,
+                width: savedWatchRect.w,
+                height: savedWatchRect.h,
               }}
             />
           )}
@@ -625,32 +681,48 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
         </button>
       </div>
 
-      {/* Auto-capture toolbar: impact detection + OCR stats box. */}
+      {/* Auto-capture toolbar: screen/mic shot detection + OCR stats box. */}
       <div className="capture-bar">
-        <span className="cap-label">🎯 Auto shot detect</span>
+        <span className="cap-label">🎯 Shot detect</span>
         <div className="seg">
-          {(['off', 'low', 'high'] as Sensitivity[]).map((s) => (
+          {(['screen', 'mic', 'off'] as const).map((m) => (
             <button
-              key={s}
-              className={`seg-btn ${sensitivity === s ? 'on' : ''}`}
-              onClick={() => setSensitivity(s)}
+              key={m}
+              className={`seg-btn ${detectMode === m ? 'on' : ''}`}
+              onClick={() => setDetectMode(m)}
             >
-              {s}
+              {m}
             </button>
           ))}
         </div>
-        {!micOn && sensitivity !== 'off' && <span className="cap-note">needs mic on</span>}
+        {detectMode === 'screen' && (
+          <button
+            className="seg-btn wide watch-btn"
+            disabled={!screenOn}
+            onClick={() => {
+              setPickingFor((p) => (p === 'watch' ? null : 'watch'));
+              setDragRect(null);
+            }}
+          >
+            {pickingFor === 'watch' ? 'cancel' : watchRegion ? '👁 move watch box' : '👁 set watch box'}
+          </button>
+        )}
+        {detectMode === 'screen' && screenOn && !watchRegion && (
+          <span className="cap-note">set the watch box to arm it</span>
+        )}
+        {detectMode === 'screen' && !screenOn && <span className="cap-note">share your screen first</span>}
+        {detectMode === 'mic' && !micOn && <span className="cap-note">needs mic on</span>}
         <span className="cap-sep" />
         <span className="cap-label">📷 Stats box (beta)</span>
         <button
           className="seg-btn wide"
           disabled={!screenOn}
           onClick={() => {
-            setPickingRegion((p) => !p);
+            setPickingFor((p) => (p === 'stats' ? null : 'stats'));
             setDragRect(null);
           }}
         >
-          {pickingRegion ? 'cancel' : region ? 'move box' : 'set box'}
+          {pickingFor === 'stats' ? 'cancel' : region ? 'move box' : 'set box'}
         </button>
         <button
           className="seg-btn wide"
@@ -659,7 +731,6 @@ function Session({ roomId, profile }: { roomId: string; profile: { name: string;
         >
           {ocrBusy ? 'reading…' : 'test read'}
         </button>
-        {!screenOn && <span className="cap-note">share your screen first</span>}
       </div>
 
       {match && match.shots.length > 0 && <ShotFeed match={match} selfId={selfId} />}

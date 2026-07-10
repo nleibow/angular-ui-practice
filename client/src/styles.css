@@ -278,6 +278,8 @@ button.pill.link:hover { color: var(--text); }
   pointer-events: none;
 }
 .region-box.dragging { border-style: solid; }
+.region-box.watch { border-color: var(--green); background: rgba(52, 209, 123, 0.08); }
+.watch-btn { color: var(--green); }
 
 /* ---------- Video panes ---------- */
 

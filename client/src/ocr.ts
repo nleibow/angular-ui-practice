@@ -82,22 +82,77 @@ export function regionToPaneRect(
   };
 }
 
-/** Snapshot the region from a playing <video>, upscaled 2x for small text. */
+/**
+ * Snapshot the region from a playing <video>, upscaled and preprocessed for
+ * OCR. Sim overlays are typically small light text on a dark widget, which
+ * raw tesseract reads poorly, so we: upscale until text is ~legible size,
+ * grayscale, invert when the region is dark (tesseract wants dark-on-light),
+ * and stretch contrast.
+ */
 function snapshotRegion(video: HTMLVideoElement, region: Region): HTMLCanvasElement | null {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (!vw || !vh) return null;
   const sx = region.x * vw;
   const sy = region.y * vh;
-  const sw = region.w * vw;
-  const sh = region.h * vh;
+  const sw = Math.max(1, region.w * vw);
+  const sh = Math.max(1, region.h * vh);
+  // Upscale so the region is at least ~200px tall (helps small widget text),
+  // capped to keep recognition fast.
+  const scale = Math.min(6, Math.max(2, Math.ceil(200 / sh)));
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(sw * 2));
-  canvas.height = Math.max(1, Math.round(sh * 2));
-  const g = canvas.getContext('2d');
+  canvas.width = Math.round(sw * scale);
+  canvas.height = Math.round(sh * scale);
+  const g = canvas.getContext('2d', { willReadFrequently: true });
   if (!g) return null;
-  g.imageSmoothingEnabled = false;
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
   g.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+  const img = g.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+  // Grayscale + brightness census.
+  let sum = 0;
+  const grays = new Uint8ClampedArray(d.length / 4);
+  for (let i = 0; i < grays.length; i++) {
+    const o = i * 4;
+    const v = (d[o] * 3 + d[o + 1] * 4 + d[o + 2]) >> 3;
+    grays[i] = v;
+    sum += v;
+  }
+  const mean = sum / grays.length;
+  const invert = mean < 128; // dark widget => light text; flip to dark-on-light
+  // Contrast stretch around the 5th/95th percentile.
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < grays.length; i++) hist[grays[i]]++;
+  let lo = 0;
+  let hi = 255;
+  let acc = 0;
+  const n = grays.length;
+  for (let v = 0; v < 256; v++) {
+    acc += hist[v];
+    if (acc >= n * 0.05) {
+      lo = v;
+      break;
+    }
+  }
+  acc = 0;
+  for (let v = 255; v >= 0; v--) {
+    acc += hist[v];
+    if (acc >= n * 0.05) {
+      hi = v;
+      break;
+    }
+  }
+  const range = Math.max(1, hi - lo);
+  for (let i = 0; i < grays.length; i++) {
+    let v = ((grays[i] - lo) / range) * 255;
+    v = Math.max(0, Math.min(255, v));
+    if (invert) v = 255 - v;
+    const o = i * 4;
+    d[o] = d[o + 1] = d[o + 2] = v;
+  }
+  g.putImageData(img, 0, 0);
   return canvas;
 }
 
