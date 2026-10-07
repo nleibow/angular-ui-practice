@@ -1,0 +1,6 @@
+anthropic>=1.11
+pydantic>=2
+pandas>=2
+yfinance>=0.2.50
+feedparser>=6
+requests>=2
